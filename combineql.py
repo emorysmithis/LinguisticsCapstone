@@ -29,7 +29,7 @@ def validateCodes(ldf):
         relation    = ldf['Relation'][index]
         # only one code per source 
         if len(sourceCodes) > 1: 
-            if relation == 'Anaphor': 
+            if relation == 'Anaphor': # TODO: make function for these if/else blocks  
                 if 'Antecedent' in sourceCodes: 
                     ldf['Source Code'][index] = 'Antecedent'
                 else: 
@@ -47,7 +47,30 @@ def validateCodes(ldf):
                 else: 
                     print(f"ERROR: relation is {relation} but 'Exophora' not in {sourceCodes}") 
                     print(ldf.loc[[index]])
-        # order source -> target 
+        # only one code per target 
+        if len(targetCodes) > 1: 
+            if relation == 'Anaphor': 
+                if 'Anaphor' in targetCodes: 
+                    ldf['Target Code'][index] = 'Anaphor'
+                else: 
+                    print(f"ERROR: relation is {relation} but 'Anaphor' not in {targetCodes}")
+                    print(ldf.loc[[index]]) 
+            elif relation == 'Cataphor': 
+                if 'Postcedent' in targetCodes: 
+                    ldf['Target Code'][index] = 'Postcedent'
+                else: 
+                    print(f"ERROR: relation is {relation} but 'Postcedent' not in {targetCodes}")
+                    print(ldf.loc[[index]])
+            elif relation == 'Exophora': 
+                if 'Referent' in targetCodes: 
+                    ldf['Target Code'][index] = 'Referent'
+                else: 
+                    print(f"ERROR: relation is {relation} but 'Referent' not in {targetCodes}") 
+                    print(ldf.loc[[index]])
+                    # TODO: likely need to switch source and target
+
+        # TODO: order source -> target 
+        '''
         sourceCode = ldf['Source Code'][index]
         targetCode = ldf['Target Code'][index]
         if sourceCode not in ['Antecedent', 'Cataphor', 'Exophora']: 
@@ -57,7 +80,7 @@ def validateCodes(ldf):
         # else: 
             # check if source -> target correct counterparts 
             # if not, ERROR 
-            
+        '''    
 
     return ldf 
 
