@@ -3,7 +3,6 @@
 import sys 
 import pandas as pd
 import os
-import re 
 
 def usage(exitcode=0): 
     progname = os.path.basename(sys.argv[0])
@@ -12,6 +11,60 @@ def usage(exitcode=0):
     -l links_data_path      Links export from atlas ti project 
     -o output_data_path     Output data file''')
     sys.exit(exitcode)
+def error(message, df, index): 
+    '''
+    Prints a message and a specified row of the data frame
+    param message: error message 
+    param df: data frame 
+    param index: row # in data frame with error 
+    '''
+    print(f"ERROR: {message}")
+    print(df.loc[[index]])
+
+def switchTargetSource(ldf, index): 
+    '''
+    Change the source to the target and the target to the source. 
+    param ldf: links data frame 
+    param index: row in data frame want to swap 
+    return links data frame 
+    '''
+    #print(f"before switch: SID: {ldf['SID'][index]} TID: {ldf['TID'][index]}")
+    #print(ldf.loc[[index]])
+    #print(f"document #: {ldf['SID'][index].split(':')[0]}")
+    if ldf['SID'][index].split(':')[0] > ldf['TID'][index].split(':')[0]: 
+        # save source in temp vars 
+        sid         = ldf['SID'][index]
+        source      = ldf['Source'][index] 
+        sourceCode  = ldf['Source Code'][index]
+        # set source to target 
+        ldf['SID'][index]           = ldf['TID'][index] 
+        ldf['Source'][index]        = ldf['Target'][index] 
+        ldf['Source Code'][index]   = ldf['Target Code'][index]
+        # set target to source 
+        ldf['TID'][index]           = sid
+        ldf['Target'][index]        = source
+        ldf['Target Code'][index]   = sourceCode
+        return ldf 
+    else: 
+        error("cannot switch source and target because sid <= tid", ldf, index)
+
+def singularizeCode(ldf, code, codesList, colTitle, index): 
+    '''
+    Each source/target should only have one code in the links data frame. 
+    This function takes a list of codes and the desired code and changes the dataframe 
+    so that the source/target only has one code in that row. 
+    param ldf: links data frame 
+    param code: str, Code that should be source/target (ex: 'Antecedent')
+    param codesList: list,  the list of codes (ex: sourceCodes) 
+    param colTitle: str, the column holding the codes (ex: 'Source Code')
+    param index: int, the row in the data frame that you are trying to singularize the codes on 
+    return ldf 
+    '''
+    if code in codesList: 
+        ldf[colTitle][index] = code
+    else: 
+        error("relation is {relation} but {code} not in {codesList}", ldf, index)
+    return ldf 
 
 def validateCodes(ldf): 
     ''' 
@@ -27,38 +80,51 @@ def validateCodes(ldf):
         sourceCodes = ldf['Source Code'][index].split('\n')
         targetCodes = ldf['Target Code'][index].split('\n')
         relation    = ldf['Relation'][index]
-        # only one code per source 
+        # only one code per source
         if len(sourceCodes) > 1: 
             if relation == 'Anaphor': 
-                if 'Antecedent' in sourceCodes: 
-                    ldf['Source Code'][index] = 'Antecedent'
-                else: 
-                    print(f"ERROR: relation is {relation} but 'Antecedent' not in {sourceCodes}")
-                    print(ldf.loc[[index]]) 
+                ldf = singularizeCode(ldf, 'Antecedent', sourceCodes, 'Source Code', index)
             elif relation == 'Cataphor': 
-                if 'Cataphor' in sourceCodes: 
-                    ldf['Source Code'][index] = 'Cataphor'
-                else: 
-                    print(f"ERROR: relation is {relation} but 'Cataphor' not in {sourceCodes}")
-                    print(ldf.loc[[index]])
+                ldf = singularizeCode(ldf, 'Cataphor', sourceCodes, 'Source Code', index)
             elif relation == 'Exophora': 
-                if 'Exophora' in sourceCodes: 
-                    ldf['Source Code'][index] = 'Exophora'
+                ldf = singularizeCode(ldf, 'Exophora', sourceCodes, 'Source Code', index)
+            else: 
+                error(f"{relation} not an accepted relation", ldf, index)
+        # only one code per target 
+        if len(targetCodes) > 1: 
+            if relation == 'Anaphor': 
+                ldf = singularizeCode(ldf, 'Anaphor', targetCodes, 'Target Code', index)
+            elif relation == 'Cataphor': 
+                ldf = singularizeCode(ldf, 'Postcedent', targetCodes, 'Target Code', index)
+            elif relation == 'Exophora': 
+                if 'Referent' in targetCodes: 
+                    ldf['Target Code'][index] = 'Referent'
                 else: 
-                    print(f"ERROR: relation is {relation} but 'Exophora' not in {sourceCodes}") 
-                    print(ldf.loc[[index]])
-        # order source -> target 
+                    if ldf['Source Code'][index] == 'Referent' and 'Exophora' in targetCodes: 
+                        ldf['Target Code'][index] = 'Exophora'
+                        ldf = switchTargetSource(ldf, index) 
+                    else: 
+                         error(f"relation is {relation} but 'Referent' not in {targetCodes}", ldf, index) 
+ 
+        counterparts = {'Antecedent':'Anaphor', 'Cataphor':'Postcedent', 'Exophora':'Referent'}
         sourceCode = ldf['Source Code'][index]
         targetCode = ldf['Target Code'][index]
-        if sourceCode not in ['Antecedent', 'Cataphor', 'Exophora']: 
-            print(f"ERROR: {sourceCode} not an acceptable source!")
-            # check if target counterpart to source 
-            # if counterpart, then switch 
-        # else: 
+        if sourceCode not in counterparts:
+            if targetCode in counterparts: 
+                # check if target counterpart to source
+                if counterparts[targetCode] == sourceCode: 
+                    # if counterpart, then switch source and target 
+                    ldf = switchTargetSource(ldf, index) 
+                else:
+                    # if not counterparts, then error 
+                    error(f"{sourceCode} not a counterpart to {targetCode}", ldf, index)
+            else: 
+                error(f"neither {sourceCode} nor {targetCode} is an acceptable source", ldf, index)
+        else: # source is an accepted source 
             # check if source -> target correct counterparts 
-            # if not, ERROR 
-            
-
+            if counterparts[sourceCode] != targetCode: 
+                # if not, ERROR     
+                error(f"source {sourceCode} !-> target {targetCode}", ldf, index)
     return ldf 
 
 def addCodes(ldf, qdf): 
@@ -154,7 +220,7 @@ def main():
     ldf = validateCodes(ldf)
 
     #print(qdf)
-    print(ldf)
+    #print(ldf)
     
     # export to output file 
     #qdf.to_excel(f"{output_data_path}")
