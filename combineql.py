@@ -3,6 +3,7 @@
 import sys 
 import pandas as pd
 import os
+import re 
 
 def usage(exitcode=0): 
     progname = os.path.basename(sys.argv[0])
@@ -11,6 +12,7 @@ def usage(exitcode=0):
     -l links_data_path      Links export from atlas ti project 
     -o output_data_path     Output data file''')
     sys.exit(exitcode)
+
 def error(message, df, index): 
     '''
     Prints a message and a specified row of the data frame
@@ -65,6 +67,20 @@ def singularizeCode(ldf, code, codesList, colTitle, index):
     else: 
         error("relation is {relation} but {code} not in {codesList}", ldf, index)
     return ldf 
+
+def cleanText(ldf): 
+    '''
+    Removes whitespace and accidental punctuation from text
+    '''
+    for index in ldf.index:
+        source = ldf['Source'][index].strip()
+        target = ldf['Target'][index].strip()
+        bad_punct = ['!','.','?']
+        if source[-1] in bad_punct: 
+            ldf['Source'][index] = source[:-1]
+        if target[-1] in bad_punct: 
+            ldf['Target'][index] = target[:-1]
+    return ldf
 
 def validateCodes(ldf): 
     ''' 
@@ -219,6 +235,8 @@ def main():
     # validate codes 
     ldf = validateCodes(ldf)
 
+    # clean text 
+    ldf = cleanText(ldf)
     #print(qdf)
     #print(ldf)
     
