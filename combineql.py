@@ -30,9 +30,6 @@ def switchTargetSource(ldf, index):
     param index: row in data frame want to swap 
     return links data frame 
     '''
-    #print(f"before switch: SID: {ldf['SID'][index]} TID: {ldf['TID'][index]}")
-    #print(ldf.loc[[index]])
-    #print(f"document #: {ldf['SID'][index].split(':')[0]}")
     if ldf['SID'][index].split(':')[0] > ldf['TID'][index].split(':')[0]: 
         # save source in temp vars 
         sid         = ldf['SID'][index]
@@ -73,13 +70,22 @@ def cleanText(ldf):
     Removes whitespace and accidental punctuation from text
     '''
     for index in ldf.index:
+        # remove ending punctuation 
         source = ldf['Source'][index].strip()
         target = ldf['Target'][index].strip()
+        docNum = ldf['TID'][index].split(':')[0]
         bad_punct = ['!','.','?']
         if source[-1] in bad_punct: 
             ldf['Source'][index] = source[:-1]
         if target[-1] in bad_punct: 
             ldf['Target'][index] = target[:-1]
+        # fix participant # 
+        reg = r'participant([0-9]+)'
+        ps = re.findall(reg, target)
+        if len(ps) > 0: 
+            for p in ps:
+                if int(p)*2 != int(docNum) and not int(docNum)%2: 
+                    error(f"participant # does not match text", ldf, index)
     return ldf
 
 def validateCodes(ldf): 
@@ -166,6 +172,29 @@ def addCodes(ldf, qdf):
 
     return ldf 
 
+def addLines(ldf, qdf): 
+    '''
+    Add the line numbers for each source and target to the links data frame 
+    param ldf: links data frame 
+    parm qdf: quotaitons data frame 
+    return links dataframe 
+    '''
+    # add Source Codes col 
+    ldf.insert(loc=3, column='Source Line', value="")
+    
+    # add Target Codes col 
+    ldf['Target Line'] = ""
+   
+    # create dictionary with IDs as keys and lines as values ({1:5 : Antecedant, 1:6 : Anaphor...})
+    lines = {row[0]: row[6] for row in qdf.values}
+    
+    # add lines to both source and target in links df 
+    for index in ldf.index: 
+        ldf['Source Line'][index] = lines[ldf['SID'][index]]
+        ldf['Target Line'][index] = lines[ldf['TID'][index]]
+
+    return ldf 
+
 def changeLineNumFormat(qdf): 
     ''' 
     The line num format is currently '62 - 62'
@@ -237,10 +266,12 @@ def main():
 
     # clean text 
     ldf = cleanText(ldf)
-    #print(qdf)
-    #print(ldf)
     
-    # export to output file 
+    # add line numbers 
+    ldf = addLines(ldf,qdf)
+
+    # export to output file
+    print(ldf)
     #qdf.to_excel(f"{output_data_path}")
     ldf.to_excel(f"{output_data_path}")
 
