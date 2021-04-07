@@ -11,6 +11,15 @@ def usage(exitcode=0):
     -l links_data_path      Links export from atlas ti project 
     -o output_data_path     Output data file''')
     sys.exit(exitcode)
+def error(message, df, index): 
+    '''
+    Prints a message and a specified row of the data frame
+    param message: error message 
+    param df: data frame 
+    param index: row # in data frame with error 
+    '''
+    print(f"ERROR: {message}")
+    print(df.loc[[index]])
 
 def switchTargetSource(ldf, index): 
     '''
@@ -19,19 +28,25 @@ def switchTargetSource(ldf, index):
     param index: row in data frame want to swap 
     return links data frame 
     '''
-    # save source in temp vars 
-    sid         = ldf['SID'][index]
-    source      = ldf['Source'][index] 
-    sourceCode  = ldf['Source Code'][index]
-    # set source to target 
-    ldf['SID'][index]           = ldf['TID'][index] 
-    ldf['Source'][index]        = ldf['Target'][index] 
-    ldf['Source Code'][index]   = ldf['Target Code'][index]
-    # set target to source 
-    ldf['TID'][index]           = sid
-    ldf['Target'][index]        = source
-    ldf['Target Code'][index]   = sourceCode
-    return ldf 
+    #print(f"before switch: SID: {ldf['SID'][index]} TID: {ldf['TID'][index]}")
+    #print(ldf.loc[[index]])
+    #print(f"document #: {ldf['SID'][index].split(':')[0]}")
+    if ldf['SID'][index].split(':')[0] > ldf['TID'][index].split(':')[0]: 
+        # save source in temp vars 
+        sid         = ldf['SID'][index]
+        source      = ldf['Source'][index] 
+        sourceCode  = ldf['Source Code'][index]
+        # set source to target 
+        ldf['SID'][index]           = ldf['TID'][index] 
+        ldf['Source'][index]        = ldf['Target'][index] 
+        ldf['Source Code'][index]   = ldf['Target Code'][index]
+        # set target to source 
+        ldf['TID'][index]           = sid
+        ldf['Target'][index]        = source
+        ldf['Target Code'][index]   = sourceCode
+        return ldf 
+    else: 
+        error("cannot switch source and target because sid <= tid", ldf, index)
 
 def singularizeCode(ldf, code, codesList, colTitle, index): 
     '''
@@ -48,8 +63,7 @@ def singularizeCode(ldf, code, codesList, colTitle, index):
     if code in codesList: 
         ldf[colTitle][index] = code
     else: 
-        print(f"ERROR: relation is {relation} but {code} not in {codesList}")
-        print(ldf.loc[[index]]) 
+        error("relation is {relation} but {code} not in {codesList}", ldf, index)
     return ldf 
 
 def validateCodes(ldf): 
@@ -67,7 +81,6 @@ def validateCodes(ldf):
         targetCodes = ldf['Target Code'][index].split('\n')
         relation    = ldf['Relation'][index]
         # only one code per source
-        # TODO: need to write out/check logic 
         if len(sourceCodes) > 1: 
             if relation == 'Anaphor': 
                 ldf = singularizeCode(ldf, 'Antecedent', sourceCodes, 'Source Code', index)
@@ -76,7 +89,7 @@ def validateCodes(ldf):
             elif relation == 'Exophora': 
                 ldf = singularizeCode(ldf, 'Exophora', sourceCodes, 'Source Code', index)
             else: 
-                print(f"ERROR: {relation} not an accepted relation")
+                error(f"{relation} not an accepted relation", ldf, index)
         # only one code per target 
         if len(targetCodes) > 1: 
             if relation == 'Anaphor': 
@@ -89,19 +102,14 @@ def validateCodes(ldf):
                 else: 
                     if ldf['Source Code'][index] == 'Referent' and 'Exophora' in targetCodes: 
                         ldf['Target Code'][index] = 'Exophora'
-                        ldf = switchTargetSource(ldf, index)
-                        # TODO: difference between switching codes and switching entire source/target! 
+                        ldf = switchTargetSource(ldf, index) 
                     else: 
-                         print(f"ERROR: relation is {relation} but 'Referent' not in {targetCodes}") 
-                         print(ldf.loc[[index]])
-
-
-        # TODO: order source -> target 
+                         error(f"relation is {relation} but 'Referent' not in {targetCodes}", ldf, index) 
+ 
         counterparts = {'Antecedent':'Anaphor', 'Cataphor':'Postcedent', 'Exophora':'Referent'}
         sourceCode = ldf['Source Code'][index]
         targetCode = ldf['Target Code'][index]
         if sourceCode not in counterparts:
-            print(f"{sourceCode} not an acceptable source, {targetCode} is targetCode")
             if targetCode in counterparts: 
                 # check if target counterpart to source
                 if counterparts[targetCode] == sourceCode: 
@@ -109,15 +117,14 @@ def validateCodes(ldf):
                     ldf = switchTargetSource(ldf, index) 
                 else:
                     # if not counterparts, then error 
-                    print(f"ERROR: {sourceCode} not a counterpart to {targetCode}")
+                    error(f"{sourceCode} not a counterpart to {targetCode}", ldf, index)
             else: 
-                print(f"ERROR: neither {sourceCode} nor {targetCode} is an acceptable source")
+                error(f"neither {sourceCode} nor {targetCode} is an acceptable source", ldf, index)
         else: # source is an accepted source 
             # check if source -> target correct counterparts 
             if counterparts[sourceCode] != targetCode: 
                 # if not, ERROR     
-                print(f"ERROR: source {sourceCode} !-> target {targetCode}")
-                print(ldf.loc[[index]])
+                error(f"source {sourceCode} !-> target {targetCode}", ldf, index)
     return ldf 
 
 def addCodes(ldf, qdf): 
@@ -213,7 +220,7 @@ def main():
     ldf = validateCodes(ldf)
 
     #print(qdf)
-    print(ldf)
+    #print(ldf)
     
     # export to output file 
     #qdf.to_excel(f"{output_data_path}")
