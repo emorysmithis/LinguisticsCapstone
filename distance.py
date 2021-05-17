@@ -28,6 +28,8 @@ def addRefDiffs(df):
     but only for cataphor and anaphor 
     '''
     df['Ref Diff'] = ""
+    df['Anaphora Ref Diff'] = "" 
+    df['Cataphora Ref Diff'] = "" 
     for index in df.index: 
         if df['Target Code'][index] != 'Referent':
             sourceRef = df['SID'][index].split(':')[1]
@@ -36,6 +38,10 @@ def addRefDiffs(df):
             if refDiff < 0: 
                 error(f"refDiff: {refDiff}", df, index)
             df['Ref Diff'][index] = refDiff
+            if df['Relation'][index] == 'Anaphor': 
+                df['Anaphora Ref Diff'][index] = refDiff 
+            elif df['Relation'][index] == 'Cataphor': 
+                df['Cataphora Ref Diff'][index] = refDiff 
         
     #df.loc[df['Target Code'] != 'Referent', 'Ref Diff'] = df['TID'].split(':')[1] - df['SID'].split(':')[1]
     return df 
@@ -51,6 +57,18 @@ def addLineDiffs(df):
 
     return df
 
+def calcRefMean(df, colTitle): 
+    numRows = 0 
+    refSum = 0 
+    for row in df[colTitle]:
+        if type(row) == int: 
+            numRows += 1 
+            refSum += row 
+    print(f"numRows: {numRows}, refSum: {refSum}")
+    average = refSum/numRows 
+    return average 
+        
+
 def calcLineMeans(df): 
     '''
     Calculate the average distance between source and target 
@@ -58,7 +76,13 @@ def calcLineMeans(df):
     print(f"Line Difference Mean: {df['Line Diff'].mean()}")
     print(f"Anaphor Line Difference Mean: {df['Anaphor Line Diff'].mean()}")
     print(f"Cataphor Line Difference Mean: {df['Cataphor Line Diff'].mean()}")
-    
+    refAvg = calcRefMean(df, 'Ref Diff')
+    print(f"Reference Number Difference Mean: {refAvg}")
+    anaRefAvg = calcRefMean(df, 'Anaphora Ref Diff')
+    print(f"Anaphora Reference Number Difference Mean: {anaRefAvg}")
+    catRefAvg = calcRefMean(df, 'Cataphora Ref Diff')
+    print(f"Cataphora Reference Number Difference Mean: {catRefAvg}")
+
 
 def main(): 
     # command line parsing 
@@ -87,10 +111,11 @@ def main():
     # add line diff cols 
     df = addLineDiffs(df)
     
+    # add ref # diff cols 
+    df = addRefDiffs(df)
+    
     # calculate line diff averages 
     calcLineMeans(df)
-
-    df = addRefDiffs(df)
 
     # export to output file
     print(df)
